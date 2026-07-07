@@ -144,7 +144,7 @@ def resumen_gerencia(d):
     if u1.get("nombre"):
         st.markdown(f"**Usuario piloto:** {u1.get('nombre')} — {u1.get('whatsapp') or 'sin WhatsApp'}")
     if d.get("horarios_pico"):
-        st.markdown(f"** Posibles horarios de mayor consulta:** {d['horarios_pico']}")
+        st.markdown(f"**Posibles horarios de mayor consulta:** {d['horarios_pico']}")
     if d.get("restricciones_especiales"):
         st.markdown(f"**Restricciones:** {d['restricciones_especiales']}")
 
@@ -290,6 +290,8 @@ elif form_type == "IT" and respondente:
         with st.expander("📋 Ver resumen de lo que ingresaste", expanded=guardar):
             resumen_it(actual)
 
+        mostrar_historial("IT", respondente, resumen_it)
+
     except Exception as e:
         st.error(str(e))
 
@@ -345,6 +347,8 @@ elif form_type == "Gerencia" and respondente:
         st.markdown("<div class='section-title'>Resumen</div>", unsafe_allow_html=True)
         with st.expander("📋 Ver resumen de lo ingresado", expanded=guardar):
             resumen_gerencia(actual)
+
+        mostrar_historial("Gerencia", respondente, resumen_gerencia)
 
     except Exception as e:
         st.error(str(e))
