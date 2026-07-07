@@ -25,21 +25,28 @@ if not form_type:
             response = supabase.table("solicitud_it").select("*").eq("respondente", "Erick Troncoso").execute()
             if response.data:
                 data = response.data[0]
+                campos_completos = []
+                
                 if data.get("host"):
+                    campos_completos.append(f"Host: {data.get('host')}")
+                if data.get("puerto"):
+                    campos_completos.append(f"Puerto: {data.get('puerto')}")
+                if data.get("usuario_sql"):
+                    campos_completos.append(f"Usuario: {data.get('usuario_sql')}")
+                if data.get("base_datos"):
+                    campos_completos.append(f"BD: {data.get('base_datos')}")
+                if data.get("tabla_estimacion"):
+                    campos_completos.append(f"Tabla Est: {data.get('tabla_estimacion')}")
+                if data.get("tabla_trisemanal"):
+                    campos_completos.append(f"Tabla Tri: {data.get('tabla_trisemanal')}")
+                if data.get("tabla_recepcion"):
+                    campos_completos.append(f"Tabla Rec: {data.get('tabla_recepcion')}")
+                
+                if campos_completos:
                     with st.container(border=True):
-                        st.success("✅ Datos recibidos")
-                        
-                        campos = {
-                            "Host": data.get("host"),
-                            "Puerto": data.get("puerto"),
-                            "Usuario": data.get("usuario_sql"),
-                            "Base de Datos": data.get("base_datos")
-                        }
-                        
-                        for campo, valor in campos.items():
-                            if valor:
-                                st.write(f"✓ {campo}: **{valor}**")
-                        
+                        st.success(f"✅ Datos recibidos ({len(campos_completos)} campos)")
+                        for campo in campos_completos:
+                            st.write(f"  ✓ {campo}")
                         st.caption(f"Última actualización: {data.get('fecha_actualizacion', 'N/A')}")
                 else:
                     st.info("⏳ Pendiente de respuesta")
@@ -55,21 +62,31 @@ if not form_type:
             response = supabase.table("solicitud_gerencia").select("*").eq("respondente", "Jerónimo Silva").execute()
             if response.data:
                 data = response.data[0]
-                if data.get("ejemplos_preguntas") or (data.get("usuario_piloto_1") and data.get("usuario_piloto_1", {}).get("nombre")):
+                campos_completos = []
+                
+                if data.get("ejemplos_preguntas"):
+                    ejemplos_count = len([l for l in data.get("ejemplos_preguntas", "").strip().split("\n") if l.strip()])
+                    campos_completos.append(f"Ejemplos de preguntas: {ejemplos_count}")
+                
+                if data.get("usuario_piloto_1"):
+                    u1 = data.get("usuario_piloto_1", {})
+                    if isinstance(u1, dict):
+                        if u1.get("nombre"):
+                            campos_completos.append(f"Usuario piloto 1: {u1.get('nombre')}")
+                        if u1.get("whatsapp"):
+                            campos_completo.append(f"  WhatsApp: {u1.get('whatsapp')}")
+                
+                if data.get("horarios_pico"):
+                    campos_completos.append("Horarios pico: Sí")
+                
+                if data.get("restricciones_especiales"):
+                    campos_completos.append("Restricciones: Sí")
+                
+                if campos_completos:
                     with st.container(border=True):
-                        st.success("✅ Datos recibidos")
-                        
-                        if data.get("ejemplos_preguntas"):
-                            ejemplos_count = len(data.get("ejemplos_preguntas", "").strip().split("\n"))
-                            st.write(f"✓ Ejemplos de preguntas: **{ejemplos_count}**")
-                        
-                        if data.get("usuario_piloto_1"):
-                            u1 = data.get("usuario_piloto_1", {})
-                            if isinstance(u1, dict) and u1.get("nombre"):
-                                st.write(f"✓ Usuario piloto 1: **{u1.get('nombre')}**")
-                                if u1.get("whatsapp"):
-                                    st.write(f"  WhatsApp: **{u1.get('whatsapp')}**")
-                        
+                        st.success(f"✅ Datos recibidos ({len(campos_completos)} campos)")
+                        for campo in campos_completos:
+                            st.write(f"  ✓ {campo}")
                         st.caption(f"Última actualización: {data.get('fecha_actualizacion', 'N/A')}")
                 else:
                     st.info("⏳ Pendiente de respuesta")
@@ -86,7 +103,7 @@ elif form_type == "IT" and respondente:
         response = supabase.table("solicitud_it").select("*").eq("respondente", respondente).execute()
         existing = response.data[0] if response.data else None
         
-        st.subheader("Credenciales SQL Server")
+        st.subheader("1. Credenciales SQL Server")
         col1, col2 = st.columns(2)
         with col1:
             host = st.text_input("Host", value=existing.get("host") or "" if existing else "")
@@ -101,7 +118,7 @@ elif form_type == "IT" and respondente:
         
         bd = st.text_input("Base de Datos", value=existing.get("base_datos") or "" if existing else "")
         
-        st.subheader("Tablas Críticas")
+        st.subheader("2. Tablas Críticas")
         col1, col2, col3 = st.columns(3)
         with col1:
             tabla_est = st.text_input("Tabla Estimación", value=existing.get("tabla_estimacion") or "" if existing else "")
@@ -142,21 +159,27 @@ elif form_type == "Gerencia" and respondente:
         response = supabase.table("solicitud_gerencia").select("*").eq("respondente", respondente).execute()
         existing = response.data[0] if response.data else None
         
-        st.subheader("Ejemplos de Preguntas")
+        st.subheader("1. Ejemplos de Preguntas")
         ejemplos = st.text_area("Escribe las preguntas (una por línea)", value=existing.get("ejemplos_preguntas") or "" if existing else "", height=150)
         
-        st.subheader("Usuario Piloto #1")
+        st.subheader("2. Usuario Piloto #1")
         col1, col2 = st.columns(2)
         with col1:
             u1_nombre = st.text_input("Nombre", value=existing.get("usuario_piloto_1", {}).get("nombre") or "" if existing and isinstance(existing.get("usuario_piloto_1"), dict) else "")
         with col2:
             u1_whatsapp = st.text_input("WhatsApp", value=existing.get("usuario_piloto_1", {}).get("whatsapp") or "" if existing and isinstance(existing.get("usuario_piloto_1"), dict) else "")
         
+        st.subheader("3. Información Complementaria")
+        horarios = st.text_area("Horarios pico", value=existing.get("horarios_pico") or "" if existing else "", height=60)
+        restricciones = st.text_area("Restricciones especiales", value=existing.get("restricciones_especiales") or "" if existing else "", height=60)
+        
         if st.button("💾 Guardar"):
             data = {
                 "respondente": respondente,
                 "ejemplos_preguntas": ejemplos,
                 "usuario_piloto_1": {"nombre": u1_nombre, "whatsapp": u1_whatsapp},
+                "horarios_pico": horarios,
+                "restricciones_especiales": restricciones,
                 "fecha_actualizacion": datetime.now().isoformat()
             }
             
