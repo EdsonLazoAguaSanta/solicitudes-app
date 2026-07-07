@@ -149,6 +149,18 @@ def resumen_gerencia(d):
         st.markdown(f"**Restricciones:** {d['restricciones_especiales']}")
 
 
+def obtener_actual(tabla, respondente_nombre):
+    r = (
+        supabase.table(tabla)
+        .select("*")
+        .eq("respondente", respondente_nombre)
+        .order("fecha_actualizacion", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return r.data[0] if r.data else {}
+
+
 def guardar_historial(tipo, respondente_nombre, snapshot):
     supabase.table("historial").insert(
         {
@@ -198,8 +210,7 @@ if not form_type:
     with col1:
         st.markdown("<div class='section-title'>🖥️ Erick Troncoso (IT)</div>", unsafe_allow_html=True)
         try:
-            r = supabase.table("solicitud_it").select("*").eq("respondente", "Erick Troncoso").execute()
-            d = r.data[0] if r.data else None
+            d = obtener_actual("solicitud_it", "Erick Troncoso")
             recibido = bool(d and (d.get("host") or d.get("usuario_sql")))
             with st.container(border=True):
                 if recibido:
@@ -214,8 +225,7 @@ if not form_type:
     with col2:
         st.markdown("<div class='section-title'>🏢 Jerónimo Silva (Gerencia)</div>", unsafe_allow_html=True)
         try:
-            r = supabase.table("solicitud_gerencia").select("*").eq("respondente", "Jerónimo Silva").execute()
-            d = r.data[0] if r.data else None
+            d = obtener_actual("solicitud_gerencia", "Jerónimo Silva")
             recibido = bool(d and (d.get("ejemplos_preguntas") or (d.get("usuario_piloto_1") or {}).get("nombre")))
             with st.container(border=True):
                 if recibido:
@@ -230,40 +240,39 @@ if not form_type:
 elif form_type == "IT" and respondente:
     header("📋 Solicitud Técnica - IT", f"Para: {respondente}")
     try:
-        r = supabase.table("solicitud_it").select("*").eq("respondente", respondente).execute()
-        actual = r.data[0] if r.data else {}
+        actual = obtener_actual("solicitud_it", respondente)
 
-        with st.form("form_it"):
+        with st.form("form_it", clear_on_submit=True):
             st.markdown("<div class='section-title'>1. Credenciales de conexión SQL Server</div>", unsafe_allow_html=True)
 
             col1, col2 = st.columns(2)
             with col1:
-                host = st.text_input("Host / IP", value=actual.get("host") or "")
+                host = st.text_input("Host / IP")
                 campo_con_ayuda("Dirección o IP donde el bot se conectará a SQL Server.")
             with col2:
-                puerto = st.text_input("Puerto", value=actual.get("puerto") or "")
+                puerto = st.text_input("Puerto")
                 campo_con_ayuda("Puerto TCP de SQL Server (normalmente 1433).")
 
             col3, col4 = st.columns(2)
             with col3:
-                usuario = st.text_input("Usuario", value=actual.get("usuario_sql") or "")
+                usuario = st.text_input("Usuario")
                 campo_con_ayuda("Usuario con permiso de solo lectura (SELECT) sobre Softland.")
             with col4:
-                password = st.text_input("Contraseña", type="password", value=actual.get("contrasena") or "")
+                password = st.text_input("Contraseña", type="password")
                 campo_con_ayuda("Contraseña del usuario indicado arriba.")
 
-            bd = st.text_input("Base de Datos Softland", value=actual.get("base_datos") or "")
+            bd = st.text_input("Base de Datos Softland")
             campo_con_ayuda("Nombre exacto de la base de datos donde vive el schema de Softland.")
 
             st.markdown("<div class='section-title'>2. Tablas requeridas</div>", unsafe_allow_html=True)
 
-            tabla_est = st.text_input("Nombre tabla de Estimación", value=actual.get("tabla_estimacion") or "")
+            tabla_est = st.text_input("Nombre tabla de Estimación")
             campo_con_ayuda("Tabla con la estimación de cosecha (Invierno/Primavera).")
 
-            tabla_tri = st.text_input("Nombre tabla Trisemanal actual", value=actual.get("tabla_trisemanal") or "")
+            tabla_tri = st.text_input("Nombre tabla Trisemanal actual")
             campo_con_ayuda("Tabla con la programación trisemanal vigente.")
 
-            tabla_rec = st.text_input("Nombre tabla Recepción Planta", value=actual.get("tabla_recepcion") or "")
+            tabla_rec = st.text_input("Nombre tabla Recepción Planta")
             campo_con_ayuda("Tabla con la recepción de fruta en planta (fecha, variedad, cantidad, hora).")
 
             guardar = st.form_submit_button("💾 Guardar cambios")
@@ -281,10 +290,13 @@ elif form_type == "IT" and respondente:
                 "tabla_recepcion": tabla_rec,
                 "fecha_actualizacion": datetime.now().isoformat(),
             }
-            supabase.table("solicitud_it").upsert(payload).execute()
-            guardar_historial("IT", respondente, payload)
+            supabase.table("solicitud_it").upsert(payload, on_conflict="respondente").execute()
             st.success("Guardado!")
             actual = payload
+            try:
+                guardar_historial("IT", respondente, payload)
+            except Exception as hist_err:
+                st.warning(f"Se guardó tu respuesta, pero no se pudo registrar en el historial: {hist_err}")
 
         st.markdown("<div class='section-title'>Resumen</div>", unsafe_allow_html=True)
         with st.expander("📋 Ver resumen de lo que ingresaste", expanded=guardar):
@@ -298,34 +310,24 @@ elif form_type == "IT" and respondente:
 elif form_type == "Gerencia" and respondente:
     header("📋 Solicitud Operacional - Gerencia", f"Para: {respondente}")
     try:
-        r = supabase.table("solicitud_gerencia").select("*").eq("respondente", respondente).execute()
-        actual = r.data[0] if r.data else {}
-        u1_actual = actual.get("usuario_piloto_1") if isinstance(actual.get("usuario_piloto_1"), dict) else {}
+        actual = obtener_actual("solicitud_gerencia", respondente)
 
-        with st.form("form_gerencia"):
+        with st.form("form_gerencia", clear_on_submit=True):
             st.markdown("<div class='section-title'>1. Ejemplos de preguntas reales</div>", unsafe_allow_html=True)
-            ejemplos = st.text_area(
-                "Ejemplos (uno por línea)",
-                value=actual.get("ejemplos_preguntas") or "",
-                height=150,
-            )
+            ejemplos = st.text_area("Ejemplos (uno por línea)", height=150)
             campo_con_ayuda('Escribe preguntas reales que le harían al bot, una por línea. Ej: "¿Qué cosecho próximas 3 semanas?"')
 
             st.markdown("<div class='section-title'>2. Usuario piloto para UAT</div>", unsafe_allow_html=True)
-            u1_n = st.text_input("Nombre completo", value=u1_actual.get("nombre") or "")
+            u1_n = st.text_input("Nombre completo")
             campo_con_ayuda("Persona que probará el bot antes del go-live.")
-            u1_w = st.text_input("WhatsApp", value=u1_actual.get("whatsapp") or "")
+            u1_w = st.text_input("WhatsApp")
             campo_con_ayuda("Número de WhatsApp donde probaremos el bot con esta persona (ej: +56912345678).")
 
             st.markdown("<div class='section-title'>3. Información adicional</div>", unsafe_allow_html=True)
-            horarios = st.text_area("Horarios de mayor consultas", value=actual.get("horarios_pico") or "", height=80)
+            horarios = st.text_area("Horarios de mayor consultas", height=80)
             campo_con_ayuda("¿Hay horas del día donde se concentran más preguntas?")
 
-            restricciones = st.text_area(
-                "Restricciones o consideraciones especiales",
-                value=actual.get("restricciones_especiales") or "",
-                height=80,
-            )
+            restricciones = st.text_area("Restricciones o consideraciones especiales", height=80)
             campo_con_ayuda("Ej: información confidencial que el bot no debe compartir, usuarios que no manejan español técnico, etc.")
 
             guardar = st.form_submit_button("💾 Guardar cambios")
@@ -339,10 +341,13 @@ elif form_type == "Gerencia" and respondente:
                 "restricciones_especiales": restricciones,
                 "fecha_actualizacion": datetime.now().isoformat(),
             }
-            supabase.table("solicitud_gerencia").upsert(payload).execute()
-            guardar_historial("Gerencia", respondente, payload)
+            supabase.table("solicitud_gerencia").upsert(payload, on_conflict="respondente").execute()
             st.success("Guardado!")
             actual = payload
+            try:
+                guardar_historial("Gerencia", respondente, payload)
+            except Exception as hist_err:
+                st.warning(f"Se guardó tu respuesta, pero no se pudo registrar en el historial: {hist_err}")
 
         st.markdown("<div class='section-title'>Resumen</div>", unsafe_allow_html=True)
         with st.expander("📋 Ver resumen de lo ingresado", expanded=guardar):
